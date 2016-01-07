@@ -77,6 +77,19 @@ struct smack_known {
 };
 
 /*
+* This is the repository for network labels. When a network packet
+* is received first time, SMACK label is added in network label list. 
+* When next packet is received first network label cache is searched.
+*/
+struct smack_net_known {
+       struct list_head                list;
+       char                            *smk_known;
+       u32                             smk_secid;
+       struct netlbl_lsm_secattr       smk_netlabel;	/* on wire labels */
+       struct smack_known              *skp;           /* SMACK label in global list */
+};
+
+/*
  * Maximum number of bytes for the levels in a CIPSO IP option.
  * Why 23? CIPSO is constrained to 30, so a 32 byte buffer is
  * bigger than can be used, and 24 is the next lower multiple
@@ -303,6 +316,7 @@ void smk_insert_entry(struct smack_known *skp);
 struct smack_known *smk_find_entry(const char *);
 int smack_privileged(int cap);
 void smk_destroy_label_list(struct list_head *list);
+void smk_add_netlabel_cache(struct smack_known *skp);
 
 /*
  * Shared data.
@@ -327,6 +341,7 @@ extern struct smack_known smack_known_web;
 extern struct mutex	smack_known_lock;
 extern struct list_head smack_known_list;
 extern struct list_head smk_net4addr_list;
+extern struct list_head smack_net_known_list;
 #if IS_ENABLED(CONFIG_IPV6)
 extern struct list_head smk_net6addr_list;
 #endif /* CONFIG_IPV6 */
