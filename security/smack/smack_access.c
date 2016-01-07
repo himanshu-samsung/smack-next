@@ -48,6 +48,9 @@ struct smack_known smack_known_web = {
 
 LIST_HEAD(smack_known_list);
 
+/* List for network label cache */
+LIST_HEAD(smack_net_known_list);
+
 /*
  * The initial value needs to be bigger than any of the
  * known values above.
@@ -591,6 +594,30 @@ unlockout:
 	return skp;
 }
 
+/*
+ * smk_add_netlabel_cache - Create a cache for network labels
+ * @ skp: Pointer to smack_known structure from global smack label list
+ *
+ * No value is returned
+ */
+void smk_add_netlabel_cache(struct smack_known *skp)
+{
+	struct smack_net_known *net_skp;
+
+	net_skp = kzalloc(sizeof(struct smack_known), GFP_KERNEL);
+	if(net_skp == NULL)
+		return;
+	net_skp->smk_known= kzalloc(sizeof(skp->smk_known), GFP_KERNEL);
+	if(net_skp->smk_known == NULL)
+		return;
+	strcpy(net_skp->smk_known, skp->smk_known);
+	net_skp->smk_secid = skp->smk_secid;
+	net_skp->smk_netlabel = skp->smk_netlabel;
+	net_skp->skp = skp;
+	list_add_rcu(&net_skp->list, &smack_net_known_list);
+	return; 
+}
+
 /**
  * smack_from_secid - find the Smack label associated with a secid
  * @secid: an integer that might be associated with a Smack label
@@ -601,10 +628,22 @@ unlockout:
 struct smack_known *smack_from_secid(const u32 secid)
 {
 	struct smack_known *skp;
-
+	struct smack_net_known *net_skp;
+	
 	rcu_read_lock();
+	
+	/* First search SMACK label in network label cache */
+
+	list_for_each_entry_rcu(net_skp, &smack_net_known_list, list) {
+		if (net_skp->smk_secid == secid) {
+			rcu_read_unlock();
+			return net_skp->skp;
+		}
+	}
+
 	list_for_each_entry_rcu(skp, &smack_known_list, list) {
 		if (skp->smk_secid == secid) {
+			smk_add_netlabel_cache(skp);
 			rcu_read_unlock();
 			return skp;
 		}
